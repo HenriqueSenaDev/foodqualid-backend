@@ -1,6 +1,3 @@
-// Prisma schema
-// Docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,27 +7,235 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  name      String?
-  password  String
-  posts     Post[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("users")
+enum Role {
+  CONSULTOR
+  PROPRIETARIO
+  FUNCIONARIO
 }
 
-model Post {
+enum StockOutType {
+  ABERTURA_PORCIONAMENTO
+  CONSUMO_BAIXA
+}
+
+enum ReportType {
+  MENSAL
+  ANUAL
+}
+
+model User {
   id        String   @id @default(uuid())
-  title     String
-  content   String?
-  published Boolean  @default(false)
-  author    User     @relation(fields: [authorId], references: [id])
-  authorId  String
+  name      String
+  email     String   @unique
+  password  String
+  role      Role
+
+  companyId String?
+  company   Company? @relation("CompanyUsers", fields: [companyId], references: [id])
+
+  consultedCompanies Company[] @relation("ConsultantCompanies")
+
+  stockEntries      StockEntry[]
+  stockOuts         StockOut[]
+  trainingsGiven    Training[]
+  evaluationsGiven  TrainingEvaluation[] @relation("Evaluator")
+  evaluations       TrainingEvaluation[] @relation("EvaluatedEmployee")
+  checklists        Checklist[]
+  reports           Report[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
 
-  @@map("posts")
+model Company {
+  id           String @id @default(uuid())
+  name         String
+  cnpj         String @unique
+
+  consultantId String
+  consultant   User   @relation("ConsultantCompanies", fields: [consultantId], references: [id])
+  users        User[] @relation("CompanyUsers")
+
+  products     Product[]
+  trainings    Training[]
+  checklists   Checklist[]
+  reports      Report[]
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  name        String
+  
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+
+  stockEntries StockEntry[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model StockEntry {
+  id                 String   @id @default(uuid())
+  quantity           Float
+  originalExpiryDate DateTime
+  
+  productId          String
+  product            Product  @relation(fields: [productId], references: [id])
+  
+  authorId           String
+  author             User     @relation(fields: [authorId], references: [id])
+
+  stockOuts          StockOut[]
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model StockOut {
+  id                 String       @id @default(uuid())
+  type               StockOutType
+  quantity           Float
+  newExpiryDate      DateTime?    // Obrigatório caso seja ABERTURA_PORCIONAMENTO (RN06)
+
+  stockEntryId       String
+  stockEntry         StockEntry   @relation(fields: [stockEntryId], references: [id])
+
+  authorId           String
+  author             User         @relation(fields: [authorId], references: [id])
+
+  label              Label?       // Só existirá caso o tipo seja ABERTURA_PORCIONAMENTO
+
+  createdAt          DateTime     @default(now())
+}
+
+model Label {
+  id            String   @id @default(uuid())
+  expiryDate    DateTime // Herda a nova data calculada no StockOut
+  
+  stockOutId    String   @unique
+  stockOut      StockOut @relation(fields: [stockOutId], references: [id])
+
+  createdAt     DateTime @default(now())
+}
+
+model Training {
+  id           String   @id @default(uuid())
+  title        String
+  pdfMaterial  String?  // URL do anexo PDF no storage
+  
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id])
+  
+  consultantId String
+  consultant   User     @relation(fields: [consultantId], references: [id])
+
+  evaluations  TrainingEvaluation[]
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model TrainingEvaluation {
+  id             String   @id @default(uuid())
+  score          Float?
+  observation    String?
+
+  trainingId     String
+  training       Training @relation(fields: [trainingId], references: [id])
+  
+  employeeId     String
+  employee       User     @relation("EvaluatedEmployee", fields: [employeeId], references: [id])
+
+  consultantId   String
+  consultant     User     @relation("Evaluator", fields: [consultantId], references: [id])
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model ChecklistTemplate {
+  id          String   @id @default(uuid())
+  title       String
+  
+  categories  ChecklistCategory[]
+  checklists  Checklist[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ChecklistCategory {
+  id          String   @id @default(uuid())
+  name        String
+  
+  templateId  String
+  template    ChecklistTemplate @relation(fields: [templateId], references: [id])
+
+  questions   ChecklistQuestion[]
+}
+
+model ChecklistQuestion {
+  id          String   @id @default(uuid())
+  text        String
+  
+  categoryId  String
+  category    ChecklistCategory @relation(fields: [categoryId], references: [id])
+
+  answers     ChecklistAnswer[]
+}
+
+model Checklist {
+  id           String   @id @default(uuid())
+  status       String?  // Ex: "RASCUNHO", "CONCLUIDO"
+
+  templateId   String
+  template     ChecklistTemplate @relation(fields: [templateId], references: [id])
+
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id])
+
+  consultantId String
+  consultant   User     @relation(fields: [consultantId], references: [id])
+
+  answers      ChecklistAnswer[]
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model ChecklistAnswer {
+  id           String   @id @default(uuid())
+  isConformant Boolean
+  observation  String?
+  evidenceUrl  String?  // URL da imagem de evidência
+
+  checklistId  String
+  checklist    Checklist @relation(fields: [checklistId], references: [id])
+
+  questionId   String
+  question     ChecklistQuestion @relation(fields: [questionId], references: [id])
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Report {
+  id           String     @id @default(uuid())
+  title        String
+  type         ReportType
+  pdfUrl       String
+  statusTag    String?
+  
+  companyId    String
+  company      Company    @relation(fields: [companyId], references: [id])
+
+  consultantId String
+  consultant   User       @relation(fields: [consultantId], references: [id])
+
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 }
