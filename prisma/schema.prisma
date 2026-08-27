@@ -99,7 +99,7 @@ model StockOut {
   id                 String       @id @default(uuid())
   type               StockOutType
   quantity           Float
-  newExpiryDate      DateTime?    // Obrigatório caso seja ABERTURA_PORCIONAMENTO (RN06)
+  newExpiryDate      DateTime?
 
   stockEntryId       String
   stockEntry         StockEntry   @relation(fields: [stockEntryId], references: [id])
@@ -107,14 +107,14 @@ model StockOut {
   authorId           String
   author             User         @relation(fields: [authorId], references: [id])
 
-  label              Label?       // Só existirá caso o tipo seja ABERTURA_PORCIONAMENTO
+  label              Label? 
 
   createdAt          DateTime     @default(now())
 }
 
 model Label {
   id            String   @id @default(uuid())
-  expiryDate    DateTime // Herda a nova data calculada no StockOut
+  expiryDate    DateTime
   
   stockOutId    String   @unique
   stockOut      StockOut @relation(fields: [stockOutId], references: [id])
@@ -125,7 +125,7 @@ model Label {
 model Training {
   id           String   @id @default(uuid())
   title        String
-  pdfMaterial  String?  // URL do anexo PDF no storage
+  pdfMaterial  String?
   
   companyId    String
   company      Company  @relation(fields: [companyId], references: [id])
@@ -190,7 +190,7 @@ model ChecklistQuestion {
 
 model Checklist {
   id           String   @id @default(uuid())
-  status       String?  // Ex: "RASCUNHO", "CONCLUIDO"
+  status       String? 
 
   templateId   String
   template     ChecklistTemplate @relation(fields: [templateId], references: [id])
@@ -211,7 +211,7 @@ model ChecklistAnswer {
   id           String   @id @default(uuid())
   isConformant Boolean
   observation  String?
-  evidenceUrl  String?  // URL da imagem de evidência
+  evidenceUrl  String?
 
   checklistId  String
   checklist    Checklist @relation(fields: [checklistId], references: [id])
